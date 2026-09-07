@@ -100,6 +100,21 @@ in
       # plugins or skills. See issue #9446.
       generatedPluginName = "hm";
 
+      claudeCodeSettingsFile = jsonFormat.generate "claude-code-settings.json" (
+        cfg.settings
+        // {
+          "$schema" = "https://json.schemastore.org/claude-code-settings.json";
+        }
+        // lib.optionalAttrs (cfg.marketplaces != { }) {
+          extraKnownMarketplaces = lib.mapAttrs mkMarketplaceEntry cfg.marketplaces;
+        }
+        // lib.optionalAttrs (disabledMcpServerNames != [ ]) {
+          disabledMcpjsonServers = lib.unique (
+            (cfg.settings.disabledMcpjsonServers or [ ]) ++ disabledMcpServerNames
+          );
+        }
+      );
+
       mergedMcpServers =
         transformedMcpServers
         // lib.mapAttrs (_: server: removeAttrs (lib.hm.mcp.addType server) [ "enabled" ]) cfg.mcpServers;
@@ -290,31 +305,30 @@ in
           CLAUDE_CONFIG_DIR = cfg.configDir;
         };
 
-        file = lib.mkMerge [
-          (lib.mkIf (cfg.settings != { } || cfg.marketplaces != { } || disabledMcpServerNames != [ ]) {
-            "${cfg.configDir}/settings.json".source =
-              let
-                settingsFile = jsonFormat.generate "claude-code-settings.json" (
-                  cfg.settings
-                  // {
-                    "$schema" = "https://json.schemastore.org/claude-code-settings.json";
-                  }
-                  // lib.optionalAttrs (cfg.marketplaces != { }) {
-                    extraKnownMarketplaces = lib.mapAttrs mkMarketplaceEntry cfg.marketplaces;
-                  }
-                  // lib.optionalAttrs (disabledMcpServerNames != [ ]) {
-                    disabledMcpjsonServers = lib.unique (
-                      (cfg.settings.disabledMcpjsonServers or [ ]) ++ disabledMcpServerNames
-                    );
-                  }
-                );
+        # settings.json is installed as a real, writable file via an
+        # activation script rather than home.file's usual Nix-store symlink.
+        # Claude Code's own background worker periodically unlinks this file
+        # as part of its file management; for a real file that's harmless,
+        # but a symlink into the read-only store gets deleted outright,
+        # silently losing every user-configured setting until the next
+        # `home-manager switch` recreates it (which the same worker then
+        # deletes again). See https://github.com/nix-community/home-manager/issues/9831
+        # and https://github.com/anthropics/claude-code/issues/88307. This
+        # means an in-app settings edit only survives until the next switch,
+        # same as every other home-manager-managed file.
+        activation.claudeCodeSettings =
+          lib.mkIf (cfg.settings != { } || cfg.marketplaces != { } || disabledMcpServerNames != [ ])
+            (
+              lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+                claudeCodeSettingsTarget=${lib.escapeShellArg "${cfg.configDir}/settings.json"}
+                if [[ -L "$claudeCodeSettingsTarget" ]]; then
+                  run rm -f "$claudeCodeSettingsTarget"
+                fi
+                run install -D -m644 ${claudeCodeSettingsFile} "$claudeCodeSettingsTarget"
+              ''
+            );
 
-                settingsDirectory = pkgs.runCommand "claude-code-settings-directory" { } ''
-                  install -Dm444 ${settingsFile} "$out/settings.json"
-                '';
-              in
-              "${settingsDirectory}/settings.json";
-          })
+        file = lib.mkMerge [
           (
             if lib.isPath cfg.context then
               {

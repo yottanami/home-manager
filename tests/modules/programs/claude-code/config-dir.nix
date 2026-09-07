@@ -60,7 +60,6 @@
   nmt.script = ''
     assertPathNotExists home-files/.claude
 
-    assertFileExists home-files/.config/claude/settings.json
     assertFileExists home-files/.config/claude/CLAUDE.md
     assertFileExists home-files/.config/claude/agents/reviewer.md
     assertFileExists home-files/.config/claude/commands/hello.md

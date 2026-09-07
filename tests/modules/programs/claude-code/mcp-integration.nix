@@ -1,4 +1,20 @@
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  activationScript = pkgs.writeScript "claude-code-settings-activation" (
+    config.home.activation.claudeCodeSettings.data
+  );
+in
+{
+  # Overridden and substituted with the real sandbox tmpdir at test-run
+  # time, since the activation script bakes configDir's default (which
+  # derives from home.homeDirectory) in at build time.
+  home.homeDirectory = lib.mkForce "/@TMPDIR@/hm-user";
+
   programs = {
     claude-code = {
       package = null;
@@ -70,7 +86,13 @@
     assertFileContent "$pluginDir/.mcp.json" ${./expected-mcp-integration-plugin.json}
     assertPathNotExists "$pluginDir/.lsp.json"
 
-    settingsPath="$TESTED/home-files/.claude/settings.json"
+    substitute ${activationScript} $TMPDIR/activate --subst-var TMPDIR
+    mkdir -p "$TMPDIR/hm-user/.claude"
+    function run() { "$@"; }
+    source $TMPDIR/activate
+
+    settingsPath="$TMPDIR/hm-user/.claude/settings.json"
+    [[ ! -L "$settingsPath" ]] || fail "settings.json is still a symlink after activation"
     assertFileContent "$settingsPath" ${./expected-mcp-settings.json}
   '';
 }

@@ -2,6 +2,7 @@
   claude-code-basic = ./basic.nix;
   claude-code-config-dir = ./config-dir.nix;
   claude-code-full-config = ./full-config.nix;
+  claude-code-settings-mutable-file = ./settings-mutable-file.nix;
   claude-code-lsp = ./lsp.nix;
   claude-code-mcp = ./mcp.nix;
   claude-code-mcp-lsp = ./mcp-lsp.nix;
