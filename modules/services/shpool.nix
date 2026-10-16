@@ -52,7 +52,7 @@ in
 
   config = mkIf cfg.enable {
 
-    systemd.user = {
+    systemd.user = mkIf (cfg.systemd && cfg.package != null) {
       services.shpool = {
         Unit = {
           Description = "Shpool - Shell Session Pool";
@@ -89,7 +89,7 @@ in
       };
     };
 
-    home.packages = [ cfg.package ];
+    home.packages = mkIf (cfg.package != null) [ cfg.package ];
 
     xdg.configFile = lib.mkIf (cfg.settings != { }) {
       "shpool/config.toml".source = format.generate "config.toml" cfg.settings;

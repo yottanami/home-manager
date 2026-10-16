@@ -1,0 +1,11 @@
+[Install]
+WantedBy=sockets.target
+
+[Socket]
+FlushPending=yes
+ListenStream=%t/shpool/shpool.socket
+RemoveOnStop=yes
+SocketMode=0600
+
+[Unit]
+Description=Shpool Shell Session Pooler
